@@ -2,6 +2,7 @@ import cv2
 import tkinter as tk
 from tkinter import OptionMenu, StringVar
 from PIL import Image, ImageTk
+import mediapipe as mp
 
 class WebcamApp:
     def __init__(self, root):
@@ -21,6 +22,11 @@ class WebcamApp:
         self.source_menu = OptionMenu(root, self.selected_source, *[source[0] for source in self.available_sources])
         self.source_menu.pack(pady=5)
         
+        # Initialize MediaPipe Face Mesh
+        self.mp_face_mesh = mp.solutions.face_mesh
+        self.face_mesh = self.mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+        self.mp_drawing = mp.solutions.drawing_utils
+
         self.update()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -46,9 +52,27 @@ class WebcamApp:
     def update(self):
         ret, frame = self.vid.read()
         if ret:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
+            # Convert BGR to RGB
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Process the frame with MediaPipe
+            results = self.face_mesh.process(frame_rgb)
+            
+            # Draw the face mesh on the frame
+            if results.multi_face_landmarks:
+                for face_landmarks in results.multi_face_landmarks:
+                    # Draw landmarks
+                    self.mp_drawing.draw_landmarks(
+                        image=frame_rgb,
+                        landmark_list=face_landmarks,
+                        landmark_drawing_spec=self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1),
+                        connection_drawing_spec=self.mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=1)
+                    )
+            
+            # Convert RGB back to BGR
+            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+            self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame_bgr))
             self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        
         self.root.after(10, self.update)
 
     def on_closing(self):
